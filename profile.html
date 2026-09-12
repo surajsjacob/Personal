@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suraj Jacob — Growth and product marketing</title>
+<meta name="description" content="Suraj Jacob. Growth, GTM and product marketing across fintech and edtech. Bengaluru.">
+<meta property="og:title" content="Suraj Jacob — Growth and product marketing">
+<meta property="og:description" content="I start before the brief exists: sizing the opportunity, finding the drop-off, deciding what to build with thin data.">
+<meta property="og:type" content="profile">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Newsreader:opsz,wght@6..72,300..600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FCFCFA;
+    --ink:#14313A;
+    --ink-soft:#5C7880;
+    --hair:#D5DCDB;
+    --deep:#102A32;
+    --brass:#D9A441;
+    --tint:#EAF0EF;
+
+    --display:"Archivo", "Helvetica Neue", Arial, sans-serif;
+    --text:"Newsreader", Georgia, "Times New Roman", serif;
+
+    --gutter:clamp(1.25rem, 5vw, 5rem);
+    --measure:64ch;
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--text);
+    font-size:clamp(1.0625rem,0.98rem + 0.35vw,1.1875rem);
+    line-height:1.62;
+    font-optical-sizing:auto;
+  }
+  h1,h2,h3,.fig,.meta,nav,.pill{font-family:var(--display);font-optical-sizing:none}
+  a{color:inherit}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:3px;border-radius:2px}
+  .wrap{max-width:70rem;margin:0 auto;padding-inline:var(--gutter)}
+  .skip{position:absolute;left:-9999px}
+  .skip:focus{position:static;display:inline-block;padding:.5rem 1rem}
+
+  /* ---------- masthead ---------- */
+  .masthead{
+    position:sticky;top:0;z-index:20;
+    background:color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--hair);
+  }
+  .masthead .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:3.5rem}
+  .mark{font-family:var(--display);font-weight:700;font-stretch:112%;letter-spacing:-.01em;font-size:1rem;text-decoration:none}
+  nav{display:flex;gap:clamp(.9rem,3vw,2rem);font-size:.9rem;font-weight:500}
+  nav a{color:var(--ink-soft);text-decoration:none;padding-block:.35rem}
+  nav a:hover{color:var(--ink)}
+
+  /* ---------- hero ---------- */
+  .hero{padding-block:clamp(3.5rem,11vw,8rem) clamp(2.5rem,7vw,5rem)}
+  .hero h1{
+    font-size:clamp(2.75rem,1.6rem + 6vw,6.5rem);
+    font-weight:700;font-stretch:118%;
+    line-height:.94;letter-spacing:-.035em;
+    margin:0 0 clamp(1.5rem,4vw,2.5rem);
+  }
+  .lede{font-size:clamp(1.2rem,1.05rem + .7vw,1.6rem);line-height:1.5;max-width:38ch;margin:0 0 1.5rem;font-weight:300}
+  .hero p.sub{max-width:var(--measure);color:var(--ink-soft);margin:0 0 2rem}
+  .pills{display:flex;flex-wrap:wrap;gap:.45rem;padding:0;margin:0;list-style:none}
+  .pill{
+    font-size:.8rem;font-weight:500;letter-spacing:.01em;
+    border:1px solid var(--hair);border-radius:999px;
+    padding:.35rem .85rem;color:var(--ink-soft);background:#fff;
+  }
+
+  /* ---------- ledger ---------- */
+  .ledger{background:var(--deep);color:#EDF2F1;padding-block:clamp(3rem,8vw,5.5rem)}
+  .ledger h2{
+    font-size:clamp(1.35rem,1.2rem + .5vw,1.75rem);font-weight:600;font-stretch:108%;
+    letter-spacing:-.015em;margin:0 0 .4rem;color:#fff;
+  }
+  .ledger .note{color:#8FA9AC;font-size:.95rem;margin:0 0 clamp(2rem,5vw,3rem);max-width:52ch}
+  .rows{list-style:none;margin:0;padding:0;border-top:1px solid rgba(237,242,241,.16)}
+  .rows li{
+    display:flex;align-items:baseline;gap:1rem;
+    padding-block:1.05rem;
+    border-bottom:1px solid rgba(237,242,241,.16);
+  }
+  .label{font-family:var(--text);font-size:1rem;color:#C6D6D6;flex:0 1 auto}
+  .leader{flex:1 1 2rem;border-bottom:1px dotted rgba(237,242,241,.3);transform:translateY(-.35em);min-width:1.5rem}
+  .fig{
+    font-weight:700;font-stretch:112%;letter-spacing:-.02em;
+    font-size:clamp(1.3rem,1.05rem + 1.1vw,2.1rem);
+    color:var(--brass);white-space:nowrap;font-variant-numeric:tabular-nums;
+  }
+  .fig .from{color:#7E9497;font-weight:500;font-size:.62em}
+
+  /* ---------- sections ---------- */
+  section{padding-block:clamp(3rem,8vw,5.5rem)}
+  .head{
+    font-size:clamp(1.35rem,1.2rem + .5vw,1.75rem);font-weight:600;font-stretch:108%;
+    letter-spacing:-.015em;margin:0 0 2.25rem;padding-bottom:.9rem;
+    border-bottom:2px solid var(--ink);
+  }
+  .entry{display:grid;grid-template-columns:14rem 1fr;gap:clamp(1rem,4vw,3rem);padding-block:2.25rem;border-bottom:1px solid var(--hair)}
+  .entry:first-of-type{padding-top:0}
+  .entry:last-of-type{border-bottom:0;padding-bottom:0}
+  .meta .org{font-weight:700;font-stretch:110%;font-size:1.15rem;letter-spacing:-.015em;margin:0 0 .15rem}
+  .meta .role{font-family:var(--text);color:var(--ink);margin:0 0 .35rem;line-height:1.35}
+  .meta .when{font-size:.85rem;color:var(--ink-soft);font-weight:500;margin:0}
+  .entry .body > p:first-child{margin-top:0}
+  .entry p{max-width:var(--measure)}
+  .entry ul{list-style:none;margin:1.1rem 0 0;padding:0;max-width:var(--measure)}
+  .entry li{position:relative;padding-left:1.4rem;margin-bottom:.65rem}
+  .entry li::before{
+    content:"";position:absolute;left:0;top:.72em;
+    width:.5rem;height:1px;background:var(--brass);
+  }
+  .entry li b{font-family:var(--display);font-weight:700;font-stretch:104%;font-size:.95em;letter-spacing:-.01em}
+
+  /* ---------- background grid ---------- */
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:clamp(1.5rem,4vw,3rem)}
+  .cols h3{font-size:1rem;font-weight:700;font-stretch:108%;margin:0 0 1rem;letter-spacing:-.01em}
+  .cols ul{list-style:none;margin:0;padding:0}
+  .cols li{margin-bottom:1rem;line-height:1.45}
+  .cols .yr{display:block;font-family:var(--display);font-size:.8rem;font-weight:500;color:var(--ink-soft)}
+  .paper-note{background:var(--tint);border-left:3px solid var(--brass);padding:1.25rem 1.5rem;margin-top:2.5rem;max-width:var(--measure)}
+  .paper-note p{margin:0;font-size:1rem}
+
+  /* ---------- contact ---------- */
+  .contact{background:var(--deep);color:#EDF2F1}
+  .contact h2{font-size:clamp(1.8rem,1.3rem + 2.4vw,3.25rem);font-weight:700;font-stretch:114%;letter-spacing:-.03em;line-height:1.02;margin:0 0 1.25rem;color:#fff}
+  .contact p{color:#A9C0C2;max-width:46ch;margin:0 0 2.25rem}
+  .links{display:flex;flex-wrap:wrap;gap:.75rem 2rem;align-items:center;padding:0;margin:0;list-style:none}
+  .links a{
+    font-family:var(--display);font-weight:600;font-size:1.05rem;
+    color:var(--brass);text-decoration:none;
+    border-bottom:1px solid rgba(217,164,65,.4);padding-bottom:.15rem;
+  }
+  .links a:hover{border-bottom-color:var(--brass)}
+  footer{background:var(--deep);color:#6E8A8D;font-size:.82rem;padding-bottom:2.5rem}
+  footer .wrap{border-top:1px solid rgba(237,242,241,.12);padding-top:1.5rem}
+
+  /* ---------- one motion moment ---------- */
+  .rows li{opacity:0;transform:translateY(8px);animation:settle .5s cubic-bezier(.2,.7,.3,1) forwards;animation-delay:calc(var(--i) * 70ms)}
+  @keyframes settle{to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .rows li{opacity:1;transform:none;animation:none}
+    *{scroll-behavior:auto !important}
+  }
+  html{scroll-behavior:smooth}
+
+  /* ---------- small screens ---------- */
+  @media (max-width:46rem){
+    .entry{grid-template-columns:1fr;gap:1rem}
+    .rows li{flex-wrap:wrap;gap:.25rem .75rem;padding-block:1.1rem}
+    .label{flex:1 0 100%;order:1;font-size:.95rem;color:#9FB6B8}
+    .leader{display:none}
+    .fig{order:2}
+    nav{gap:1rem;font-size:.85rem}
+  }
+  @media (max-width:26rem){
+    nav a:nth-child(2){display:none}
+  }
+  @media print{
+    .masthead,.contact,footer{display:none}
+    body{background:#fff;font-size:11pt}
+    .ledger{background:#fff;color:#000}
+    .fig{color:#000}
+  }
+</style>
+</head>
+<body>
+
+<a class="skip" href="#work">Skip to work history</a>
+
+<header class="masthead">
+  <div class="wrap">
+    <a class="mark" href="#top">Suraj Jacob</a>
+    <nav aria-label="Sections">
+      <a href="#work">Work</a>
+      <a href="#background">Background</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <div class="hero wrap">
+    <h1>Growth, priced<br>and proven.</h1>
+    <p class="lede">I usually start before the brief exists. Sizing the opportunity, finding the drop-off, deciding what to build when the data is thin.</p>
+    <p class="sub">Then I build the rest of it: the go-to-market strategy, the cross-functional playbook, and the systems (CRM, lifecycle, sales enablement) that make growth repeatable. Nine years across fintech and edtech, working alongside marketing, sales, BD and leadership to turn ambiguous problems into numbers someone can check.</p>
+    <ul class="pills">
+      <li class="pill">GTM strategy</li>
+      <li class="pill">Pricing and positioning</li>
+      <li class="pill">Lifecycle and CRM</li>
+      <li class="pill">Market intelligence</li>
+      <li class="pill">AI-native workflows</li>
+      <li class="pill">Bengaluru</li>
+    </ul>
+  </div>
+
+  <!-- LEDGER -->
+  <div class="ledger">
+    <div class="wrap">
+      <h2>The ledger</h2>
+      <p class="note">Outcomes I owned or led, with the number attached. Details sit in the work history below.</p>
+      <ul class="rows">
+        <li style="--i:1"><span class="label">Annual funded volume from launches I led</span><span class="leader"></span><span class="fig">$100M+</span></li>
+        <li style="--i:2"><span class="label">Offer acceptance, after repricing</span><span class="leader"></span><span class="fig">81%</span></li>
+        <li style="--i:3"><span class="label">Average loan size</span><span class="leader"></span><span class="fig"><span class="from">+26% to</span> $44K</span></li>
+        <li style="--i:4"><span class="label">Category share, live tuition product</span><span class="leader"></span><span class="fig">31%</span></li>
+        <li style="--i:5"><span class="label">Revenue on that product</span><span class="leader"></span><span class="fig">$50M</span></li>
+        <li style="--i:6"><span class="label">Application to disbursement rate</span><span class="leader"></span><span class="fig"><span class="from">11.1% to</span> 13.7%</span></li>
+        <li style="--i:7"><span class="label">Campaign build time, after AI workflows</span><span class="leader"></span><span class="fig">&minus;50%</span></li>
+        <li style="--i:8"><span class="label">Support tickets, year on year</span><span class="leader"></span><span class="fig">&minus;65%</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- WORK -->
+  <section id="work" class="wrap">
+    <h2 class="head">Work</h2>
+
+    <article class="entry">
+      <div class="meta">
+        <p class="org">MPOWER Financing</p>
+        <p class="role">Product, Growth</p>
+        <p class="when">Sept 2023 to present, Bengaluru</p>
+      </div>
+      <div class="body">
+        <p>A U.S. fintech lender for international students. I own user acquisition, lifecycle and growth: GTM strategy, market intelligence and product narrative, working directly with tech, BD and CX leadership.</p>
+        <ul>
+          <li>Owned company-wide GTM for major launches contributing <b>$100M+</b> in annual funded volume.</li>
+          <li>Found the student pain point in research and took a visa support feature to market. <b>30%</b> adoption against a 25% target.</li>
+          <li>Positioned a new U.S. graduate lending product through competitive analysis and user interviews. <b>~$60M</b> projected funded volume.</li>
+          <li>Repositioned pricing and launched a loan-tenure narrative, lifting offer acceptance to <b>81%</b> and average loan size <b>26%</b>.</li>
+          <li>Built AI-native workflows (custom GPT personas, chatbot knowledge base) that cut campaign build time <b>50%</b> and support tickets <b>65%</b> year on year.</li>
+          <li>Led a four-person CRM workstream across email, WhatsApp and platform. Application to disbursement went from <b>11.1% to 13.7%</b>.</li>
+          <li>Expanded school coverage from <b>400 to 500</b>, lifting monthly lead generation <b>10%</b>.</li>
+          <li>Audited competitor journeys for UX gaps, delivering a <b>10%</b> lift in application completion; rebuilt top-of-funnel journeys with persona-based narratives for <b>12%</b> more submissions.</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="entry">
+      <div class="meta">
+        <p class="org">BYJU'S</p>
+        <p class="role">Manager, Product Marketing</p>
+        <p class="when">June 2020 to Aug 2023, Bengaluru</p>
+      </div>
+      <div class="body">
+        <p>GTM and integrated growth for the K10 portfolio at India's largest edtech. App adoption and freemium to paid conversion, across very different Indian markets.</p>
+        <ul>
+          <li>Scaled a live tuition product to <b>31%</b> category share and <b>$50M</b> revenue through integrated GTM.</li>
+          <li>Built the ATL plus BTL campaign strategy for the 2021 and 2022 launches. <b>400M+</b> reach, informed by pan-India concept testing.</li>
+          <li>Doubled monthly trial class registrations with targeted push, email and WhatsApp.</li>
+          <li>Sized the doubt resolution opportunity through consumer research and owned mid-funnel execution to <b>23%</b> MAU adoption.</li>
+          <li>Ran top-of-funnel digital generating <b>~1.4M</b> leads a month and a 1.2x CTR lift across 20+ interventions.</li>
+          <li>Launched a sales enablement platform with sales and engineering, used by <b>10K+</b> reps in 8 countries.</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="entry">
+      <div class="meta">
+        <p class="org">IFMR LEAD</p>
+        <p class="role">Research Associate</p>
+        <p class="when">Nov 2015 to Feb 2019, Bengaluru</p>
+      </div>
+      <div class="body">
+        <p>Consumer research in India for Harvard and HKUST, leading field, analytics and reporting workstreams. This is where I learned to trust primary research over instinct.</p>
+        <ul>
+          <li>Managed field teams averaging 25 people (peaking at 72) running quantitative surveys across <b>40+</b> districts in five states.</li>
+          <li>Applied RCT-based regression and descriptive analytics to <b>5,000+</b> survey responses to isolate consumer pain points.</li>
+          <li>Authored a paper on microcredit access and rural female entrepreneurship, presented at SEEP Rwanda to <b>195</b> organisations from <b>48</b> countries.</li>
+        </ul>
+      </div>
+    </article>
+  </section>
+
+  <!-- BACKGROUND -->
+  <section id="background" class="wrap">
+    <h2 class="head">Background</h2>
+    <div class="cols">
+      <div>
+        <h3>Education</h3>
+        <ul>
+          <li>PGP in Management, Marketing and Strategy<span class="yr">Indian School of Business, 2019 to 2020</span></li>
+          <li>MSc Economics, Distinction<span class="yr">University of Warwick, 2014 to 2015</span></li>
+          <li>BA Economics<span class="yr">St. Stephen's College, Delhi, 2011 to 2014</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Certifications</h3>
+        <ul>
+          <li>Product Marketing Certified: Core</li>
+          <li>CleverTap Foundation</li>
+          <li>CleverTap Journeys</li>
+          <li>GMAT, top 5%</li>
+        </ul>
+      </div>
+      <div>
+        <h3>What I'm open to</h3>
+        <ul>
+          <li>Growth Product Manager</li>
+          <li>Product Marketing</li>
+          <li>Founder's Office</li>
+          <li><span class="yr">Early stage GTM and founder-level collaboration, especially where the problem is still fuzzy.</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="paper-note">
+      <p>Published research: inclusive growth through microfinance and entrepreneurial training. An impact evaluation of a self-help group programme in South India.</p>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact" class="contact">
+    <div class="wrap">
+      <h2>Want to talk<br>through a problem?</h2>
+      <p>Happiest when the brief is still forming. Send me the messy version.</p>
+      <ul class="links">
+        <li><a href="mailto:suraj.s.jacob@gmail.com">suraj.s.jacob@gmail.com</a></li>
+        <li><a href="https://www.linkedin.com/in/suraj-s-jacob" target="_blank" rel="noopener">LinkedIn</a></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">Suraj Jacob, Bengaluru. Last updated September 2026.</div>
+</footer>
+
+</body>
+</html>
