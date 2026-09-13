@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG Bench — a working walkthrough of retrieval-augmented generation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  --paper:#E7EBEF;
+  --surface:#FFFFFF;
+  --ink:#14202E;
+  --muted:#5A6B7E;
+  --rule:#CBD3DB;
+  --signal:#2F3FD0;   /* the query / vector path */
+  --match:#B25408;    /* retrieved material */
+  --ok:#17624A;       /* grounded */
+  --warn:#8A1F3C;
+
+  --ui:"Familjen Grotesk",system-ui,sans-serif;
+  --prose:"Literata",Georgia,serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+
+  --r:6px;
+  --gap:22px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--ui);
+  font-size:16px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  padding:0 20px 80px;
+}
+.wrap{max-width:1160px;margin:0 auto;}
+
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer;}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:2px;}
+
+/* ============================================================
+   MASTHEAD
+   ============================================================ */
+.masthead{padding:44px 0 26px;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;justify-content:space-between;}
+.masthead h1{
+  font-size:clamp(30px,4.2vw,46px);
+  font-weight:700;
+  letter-spacing:-0.02em;
+  margin:0 0 6px;
+  line-height:1.02;
+}
+.masthead h1 .sub{display:block;font-weight:400;font-size:0.42em;letter-spacing:0;color:var(--muted);margin-top:10px;max-width:52ch;line-height:1.45;}
+.reset{
+  background:transparent;border:1px solid var(--rule);border-radius:var(--r);
+  padding:8px 14px;color:var(--muted);
+}
+.reset:hover{border-color:var(--ink);color:var(--ink);}
+
+/* ============================================================
+   STAGE TRACK  (the pipeline is genuinely a sequence)
+   ============================================================ */
+.track{
+  position:relative;
+  border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule);
+  padding:0;
+  margin-bottom:var(--gap);
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+.track-inner{display:flex;min-width:760px;}
+.tick{
+  flex:1;
+  position:relative;
+  background:transparent;border:0;
+  padding:16px 10px 15px;
+  text-align:left;
+  border-right:1px solid var(--rule);
+  transition:background .12s;
+}
+.tick:last-child{border-right:0;}
+.tick:hover{background:rgba(47,63,208,.05);}
+.tick .n{
+  font-family:var(--mono);font-size:10.5px;color:var(--muted);display:block;letter-spacing:.04em;
+}
+.tick .nm{font-size:13.5px;font-weight:500;display:block;margin-top:3px;color:var(--muted);}
+.tick[data-done="1"] .nm{color:var(--ink);}
+.tick[data-active="1"]{background:var(--surface);}
+.tick[data-active="1"] .nm{color:var(--signal);font-weight:700;}
+.tick[data-active="1"] .n{color:var(--signal);}
+.tick[data-active="1"]::before{
+  content:"";position:absolute;left:0;right:0;top:-1px;height:3px;background:var(--signal);
+}
+
+/* ============================================================
+   PANEL
+   ============================================================ */
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r);padding:26px 28px 24px;}
+.panel-head{border-bottom:1px solid var(--rule);padding-bottom:16px;margin-bottom:20px;}
+.panel-head h2{margin:0;font-size:25px;font-weight:700;letter-spacing:-0.015em;}
+.panel-head p{margin:7px 0 0;color:var(--muted);max-width:66ch;font-size:15px;}
+
+.cols{display:grid;grid-template-columns:290px 1fr;gap:30px;align-items:start;}
+.cols.wide{grid-template-columns:1fr;}
+@media(max-width:880px){.cols{grid-template-columns:1fr;}}
+
+/* controls */
+.ctl{margin-bottom:20px;}
+.ctl > label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;}
+.ctl .hint{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.4;}
+.ctl input[type=range]{width:100%;accent-color:var(--signal);}
+.val{font-family:var(--mono);font-size:12.5px;color:var(--signal);font-weight:500;}
+
+.seg{display:flex;border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;}
+.seg button{flex:1;background:var(--surface);border:0;padding:7px 4px;font-size:12.5px;border-right:1px solid var(--rule);color:var(--muted);}
+.seg button:last-child{border-right:0;}
+.seg button[aria-pressed="true"]{background:var(--signal);color:#fff;font-weight:600;}
+
+.switch{display:flex;gap:9px;align-items:flex-start;cursor:pointer;font-size:13.5px;line-height:1.35;}
+.switch input{margin:2px 0 0;accent-color:var(--signal);width:15px;height:15px;}
+
+textarea,input[type=text]{
+  width:100%;font-family:var(--prose);font-size:14px;line-height:1.55;
+  border:1px solid var(--rule);border-radius:var(--r);padding:10px 12px;color:var(--ink);
+  background:var(--surface);resize:vertical;
+}
+input[type=text]{font-family:var(--ui);font-size:15px;}
+textarea:focus,input:focus{outline:2px solid var(--signal);outline-offset:-1px;border-color:transparent;}
+
+.btn{
+  background:var(--ink);color:#fff;border:1px solid var(--ink);border-radius:var(--r);
+  padding:9px 16px;font-weight:600;font-size:14px;
+}
+.btn:hover{background:var(--signal);border-color:var(--signal);}
+.btn.ghost{background:transparent;color:var(--muted);border-color:var(--rule);font-weight:500;}
+.btn.ghost:hover{color:var(--ink);border-color:var(--ink);background:transparent;}
+
+/* generic bits */
+.meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.02em;}
+.note{
+  margin-top:24px;border-top:1px solid var(--rule);padding-top:16px;
+  font-size:14.5px;color:var(--muted);max-width:74ch;line-height:1.55;
+}
+.note b{color:var(--ink);font-weight:600;}
+.note.caution{border-top-color:var(--warn);}
+.note.caution b{color:var(--warn);}
+
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:26px;padding-top:18px;border-top:1px solid var(--rule);}
+
+/* ============================================================
+   STAGE-SPECIFIC
+   ============================================================ */
+/* docs */
+.doc{border:1px solid var(--rule);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+.doc header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:#F3F5F8;border-bottom:1px solid var(--rule);}
+.doc header .t{font-weight:600;font-size:14px;}
+.doc textarea{border:0;border-radius:0;min-height:118px;}
+
+/* chunks */
+.chunk{
+  border:1px solid var(--rule);border-left:3px solid var(--rule);
+  border-radius:var(--r);padding:11px 13px;margin-bottom:9px;background:var(--surface);
+}
+.chunk.hit{border-left-color:var(--match);}
+.chunk.sel{border-left-color:var(--signal);}
+.chunk .cid{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;}
+.chunk .body{font-family:var(--prose);font-size:13.5px;line-height:1.6;}
+.ov{background:rgba(178,84,8,.14);border-bottom:1px solid rgba(178,84,8,.4);}
+.qt{background:rgba(47,63,208,.13);font-weight:500;}
+
+.scroll{max-height:460px;overflow-y:auto;padding-right:6px;}
+
+/* vector strip */
+.vec{display:flex;gap:1px;height:26px;align-items:stretch;margin:5px 0 2px;}
+.vec i{flex:1;min-width:2px;border-radius:1px;}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap;}
+.legend span{display:flex;gap:6px;align-items:center;}
+.swatch{width:11px;height:11px;border-radius:2px;display:inline-block;}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--rule);vertical-align:top;}
+th{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.02em;}
+td.num,th.num{text-align:right;font-family:var(--mono);font-size:12px;}
+
+/* score rows */
+.score{display:grid;grid-template-columns:52px 1fr 62px;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid var(--rule);}
+.score .lbl{font-family:var(--mono);font-size:11.5px;color:var(--muted);}
+.bar{height:9px;background:#E7EBEF;border-radius:2px;overflow:hidden;}
+.bar i{display:block;height:100%;background:var(--rule);width:0;transition:width .5s cubic-bezier(.2,.7,.3,1);}
+.score.pass .bar i{background:var(--match);}
+.score.pass .lbl{color:var(--ink);font-weight:500;}
+.score .pct{font-family:var(--mono);font-size:12px;text-align:right;}
+.score.pass .pct{color:var(--match);font-weight:500;}
+
+/* scatter — the one loud moment */
+.plot{border:1px solid var(--rule);border-radius:var(--r);background:#F8F9FB;}
+.plot text{font-family:var(--mono);font-size:9px;fill:var(--muted);}
+
+/* prompt block */
+pre.prompt{
+  font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  background:#F6F7F9;border:1px solid var(--rule);border-radius:var(--r);
+  padding:16px 18px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:0;
+}
+pre.prompt .k{color:var(--signal);font-weight:500;}
+pre.prompt .c{color:var(--match);}
+pre.prompt .cut{color:var(--warn);}
+
+.budget{height:20px;border:1px solid var(--rule);border-radius:3px;display:flex;overflow:hidden;background:#F6F7F9;}
+.budget i{display:block;height:100%;}
+
+/* answer */
+.answer{font-family:var(--prose);font-size:17px;line-height:1.72;border-left:3px solid var(--ok);padding:2px 0 2px 18px;}
+.answer sup{font-family:var(--mono);font-size:10px;color:var(--match);font-weight:500;padding-left:2px;}
+.refusal{border-left-color:var(--warn);color:var(--warn);}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;}
+.kpi div{background:var(--surface);padding:11px 13px;}
+.kpi .v{font-family:var(--mono);font-size:20px;font-weight:500;color:var(--signal);}
+.kpi .l{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.3;}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+.chip{background:#F1F3F6;border:1px solid var(--rule);border-radius:99px;padding:5px 12px;font-size:12.5px;color:var(--muted);}
+.chip:hover{border-color:var(--signal);color:var(--signal);}
+
+.tokens{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.tok{font-family:var(--mono);font-size:11.5px;background:#F1F3F6;border:1px solid var(--rule);border-radius:3px;padding:2px 7px;}
+.tok.stop{opacity:.4;text-decoration:line-through;}
+.tok.exp{background:rgba(47,63,208,.09);border-color:rgba(47,63,208,.35);color:var(--signal);}
+
+h3.sec{font-size:13px;font-weight:600;margin:0 0 10px;color:var(--muted);}
+h3.sec + *{margin-top:0;}
+.stack > * + *{margin-top:22px;}
+
+@media(prefers-reduced-motion:reduce){
+  *{transition:none !important;animation:none !important;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <h1>RAG Bench
+        <span class="sub">A retrieval-augmented generation pipeline you can take apart. Change a setting at any stage and watch the answer downstream change with it.</span>
+      </h1>
+    </div>
+    <button class="reset" id="reset">Start over</button>
+  </header>
+
+  <nav class="track" aria-label="Pipeline stages">
+    <div class="track-inner" id="track"></div>
+  </nav>
+
+  <main class="panel" id="panel" tabindex="-1"></main>
+
+</div>
+
+<script>
+/* ============================================================================
+   1. CORPUS — sample source documents
+   ============================================================================ */
+const SAMPLE = [
+  { id:"d1", title:"Fees and exchange rates",
+    text:`Meridian Remit charges a flat transfer fee of 2.99 USD on transfers under 500 USD. Transfers of 500 USD or more carry no flat fee. On top of the flat fee we apply an exchange rate margin of 0.4 percent over the mid-market rate. \n\nThe margin is shown to you in the quote before you confirm, so the amount your recipient gets is guaranteed. Payments funded by credit card attract an additional card processing charge of 1.5 percent, which is why we recommend funding by bank debit. There is no monthly account fee and no charge for holding a balance. Tuition payments made directly to a partner university are exempt from the flat fee regardless of amount.` },
+  { id:"d2", title:"Transfer speed and tracking",
+    text:`Most transfers to India arrive within two hours of the payment clearing. Transfers funded by instant bank debit usually settle the same day. Transfers funded by standard bank transfer take one to two business days to clear before the payout is released. \n\nPayouts are not processed on weekends or on public holidays in the destination country, so a Friday evening transfer may only land on Monday. You can follow the status of any transfer in the activity tab, which moves through four states: quoted, funded, in transit, and paid out. We send an email and a push notification when the payout completes. If a transfer has been in transit for more than 24 hours, contact support with the reference number.` },
+  { id:"d3", title:"Identity verification and limits",
+    text:`Before your first transfer you must complete identity verification. You will need a government-issued photo ID and a selfie. Most checks complete in under five minutes, but a manual review can take up to one business day. Until verification is complete your account is limited to 1000 USD in total outbound value. \n\nA verified personal account can send up to 10000 USD per transfer and 50000 USD per rolling 30 days. Sending above those limits requires source of funds documentation, typically a payslip, a bank statement, or a university fee invoice. Business accounts follow a separate limit structure agreed during onboarding. Limits reset on a rolling basis, not on the calendar month.` },
+  { id:"d4", title:"Failed transfers and refunds",
+    text:`A transfer can fail if the recipient bank rejects the payout, usually because the account number or the name does not match. When a payout is rejected the funds return to your Meridian balance within three business days and you will see a reversal entry in your activity. \n\nThe flat transfer fee is refunded in full on a failed payout. The exchange rate margin is not refunded, because the currency conversion has already taken place. If you cancel a transfer yourself before it reaches the in transit state, both the fee and the full amount are returned and no margin is charged. Refunds are always returned to the original funding method and cannot be redirected to a different account.` }
+];
+
+const SAMPLE_QUESTIONS = [
+  "What fees apply to a transfer under 500 dollars?",
+  "How long does a transfer to India take?",
+  "Why did my transfer fail and will I get my money back?",
+  "Can I pay my university tuition without a fee?",
+  "What does it cost to send 200 dollars?",
+  "What is the weather in Bengaluru tomorrow?"
+];
+
+/* ============================================================================
+   2. TEXT ENGINE — tokenising, IDF, hashed embeddings, cosine
+   ============================================================================ */
+const STOP = new Set(("a an the and or but if of to in on at for from by with as is are was were be been " +
+"being do does did doing have has had having i you he she it we they this that these those will would can " +
+"could should may might must not no nor so than then there here when where which who whom why how what " +
+"about into over under again further once all any both each few more most other some such only own same " +
+"too very s t just now your my our their its his her me him us them").split(" "));
+
+/* Groups of terms that a real embedding model would place near each other.
+   Included so you can see what semantic retrieval buys you over pure keyword matching. */
+const GROUPS = [
+  ["fee","fees","cost","costs","charge","charges","charging","price","pricing","rate","rates","margin","expensive","cheap"],
+  ["transfer","transfers","send","sending","sent","remittance","remit","payment","payments","payout","money","funds"],
+  ["time","long","fast","speed","quick","quickly","arrive","arrives","arrival","settle","settles","hours","days","delay"],
+  ["limit","limits","maximum","max","cap","ceiling","threshold","allowance"],
+  ["verify","verified","verification","kyc","identity","id","document","documents","documentation","proof","selfie"],
+  ["refund","refunded","refunds","reversal","reverse","cancel","cancelled","cancellation","returned","return"],
+  ["fail","failed","failure","fails","reject","rejected","error","declined","problem","issue"],
+  ["currency","exchange","fx","conversion","convert","converted","mid-market"],
+  ["student","tuition","university","college","education","fee-invoice"],
+  ["support","help","contact","assistance","service"],
+  ["account","accounts","balance","profile","onboarding"]
+];
+const GROUP_OF = {};
+GROUPS.forEach((g,i)=>g.forEach(t=>GROUP_OF[t]=i));
+
+const DIM = 64;
+
+function fnv(str,seed){
+  let h = (seed>>>0) || 2166136261;
+  for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h,16777619)>>>0; }
+  return h>>>0;
+}
+function words(text){
+  return text.toLowerCase().replace(/[^a-z0-9\s.-]/g," ").split(/\s+/).filter(Boolean);
+}
+function tokenize(text){
+  return words(text).map(w=>w.replace(/^[.-]+|[.-]+$/g,"")).filter(w=>w.length>1 && !STOP.has(w));
+}
+/* Hashing vectoriser: every term is hashed to one of DIM buckets with a sign.
+   This is a real technique. Collisions are real too — worth seeing. */
+function embed(terms, idf, expand){
+  const v = new Array(DIM).fill(0);
+  const tf = {};
+  terms.forEach(t=>tf[t]=(tf[t]||0)+1);
+  for(const t in tf){
+    const w = (1+Math.log(tf[t])) * (idf[t]!==undefined ? idf[t] : Math.log(1+CORPUS_N));
+    const d = fnv(t,2166136261) % DIM;
+    const s = (fnv(t,1013904223) & 1) ? 1 : -1;
+    v[d] += s*w;
+    if(expand && GROUP_OF[t]!==undefined){
+      const gt = "grp"+GROUP_OF[t];
+      const gd = fnv(gt,2166136261) % DIM;
+      const gs = (fnv(gt,1013904223) & 1) ? 1 : -1;
+      v[gd] += gs*w*0.75;
+    }
+  }
+  const n = Math.hypot(...v) || 1;
+  return v.map(x=>x/n);
+}
+function cosine(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+let CORPUS_N = 1;
+
+function buildIdf(chunkTermLists){
+  const df = {};
+  CORPUS_N = chunkTermLists.length || 1;
+  chunkTermLists.forEach(list=>{
+    new Set(list).forEach(t=>df[t]=(df[t]||0)+1);
+  });
+  const idf = {};
+  for(const t in df) idf[t] = Math.log((CORPUS_N+1)/(df[t]+0.5));
+  return {df, idf};
+}
+
+/* ============================================================================
+   3. CHUNKING
+   ============================================================================ */
+function splitSentences(t){
+  return t.replace(/\s+/g," ").trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+}
+function chunkFixed(doc, size, overlap){
+  const w = doc.text.replace(/\s+/g," ").trim().split(" ");
+  const step = Math.max(1, size - overlap);
+  const out = [];
+  for(let i=0;i<w.length;i+=step){
+    const slice = w.slice(i, i+size);
+    if(!slice.length) break;
+    out.push({ text:slice.join(" "), overlapCount: i===0 ? 0 : Math.min(overlap, slice.length) });
+    if(i+size >= w.length) break;
+  }
+  return out;
+}
+function chunkSentence(doc, size, overlap){
+  const sents = splitSentences(doc.text);
+  const out = []; let cur=[], count=0;
+  const carry = overlap > 0 ? 1 : 0;
+  for(let i=0;i<sents.length;i++){
+    const n = sents[i].split(" ").length;
+    if(count+n > size && cur.length){
+      out.push({ text:cur.join(" "), overlapCount:0 });
+      cur = carry ? [cur[cur.length-1]] : [];
+      count = cur.reduce((a,s)=>a+s.split(" ").length,0);
+    }
+    cur.push(sents[i]); count += n;
+  }
+  if(cur.length) out.push({ text:cur.join(" "), overlapCount:0 });
+  return out;
+}
+function chunkParagraph(doc){
+  const ps = doc.text.split(/\n{2,}/).map(s=>s.trim()).filter(Boolean);
+  return (ps.length?ps:[doc.text]).map(p=>({ text:p, overlapCount:0 }));
+}
+
+/* ============================================================================
+   4. STATE + PIPELINE
+   ============================================================================ */
+const S = {
+  stage:0,
+  docs: JSON.parse(JSON.stringify(SAMPLE)),
+  strategy:"fixed", size:55, overlap:12,
+  expand:true,
+  query: SAMPLE_QUESTIONS[0],
+  topK:3, threshold:0.12,
+  rerank:true,
+  budget:420,
+  // derived
+  chunks:[], idf:{}, df:{}, ranked:[], selected:[], prompt:"", promptTokens:0,
+  answer:null, dropped:0
+};
+
+function run(){
+  /* chunk */
+  const fn = S.strategy==="fixed" ? (d)=>chunkFixed(d,S.size,S.overlap)
+           : S.strategy==="sentence" ? (d)=>chunkSentence(d,S.size,S.overlap)
+           : (d)=>chunkParagraph(d);
+  S.chunks = [];
+  S.docs.forEach(d=>{
+    if(!d.text.trim()) return;
+    fn(d).forEach((c,i)=>{
+      S.chunks.push({
+        id:`${d.id}-c${i}`, docId:d.id, docTitle:d.title,
+        text:c.text, overlapCount:c.overlapCount,
+        terms:tokenize(c.text), words:c.text.split(" ").length
+      });
+    });
+  });
+
+  /* index */
+  const built = buildIdf(S.chunks.map(c=>c.terms));
+  S.idf = built.idf; S.df = built.df;
+  S.chunks.forEach(c=>{ c.vec = embed(c.terms, S.idf, S.expand); });
+
+  /* query */
+  const qTerms = tokenize(S.query);
+  S.qTerms = qTerms;
+  S.qVec = S.chunks.length ? embed(qTerms, S.idf, S.expand) : new Array(DIM).fill(0);
+
+  /* retrieve */
+  const scored = S.chunks.map(c=>{
+    const sim = cosine(c.vec, S.qVec);
+    const present = qTerms.filter(t=>c.terms.includes(t));
+    const coverage = qTerms.length ? present.length/qTerms.length : 0;
+    return { ...c, sim, coverage, rerankScore: 0.65*sim + 0.35*coverage };
+  });
+  const byVector = [...scored].sort((a,b)=>b.sim-a.sim);
+  byVector.forEach((c,i)=>c.vecRank=i+1);
+  S.ranked = byVector;
+
+  const pool = byVector.filter(c=>c.sim >= S.threshold).slice(0, Math.max(S.topK, S.rerank?S.topK*2:S.topK));
+  let chosen = S.rerank ? [...pool].sort((a,b)=>b.rerankScore-a.rerankScore) : pool;
+  chosen = chosen.slice(0, S.topK);
+  chosen.forEach((c,i)=>c.finalRank=i+1);
+  S.pool = pool;
+  S.selected = chosen;
+
+  buildPrompt();
+  generate();
+}
+
+const SYSTEM_PROMPT = "You are a support assistant for Meridian Remit. Answer using only the context below. If the context does not contain the answer, say you do not know. Cite the source of each claim.";
+
+function estTokens(str){ return Math.ceil(str.split(/\s+/).filter(Boolean).length * 1.35); }
+
+function buildPrompt(){
+  let used = estTokens(SYSTEM_PROMPT) + estTokens(S.query) + 20;
+  const kept = []; let dropped = 0;
+  S.selected.forEach((c,i)=>{
+    const t = estTokens(c.text) + 8;
+    if(used + t <= S.budget){ kept.push(c); used += t; }
+    else dropped++;
+  });
+  S.kept = kept; S.dropped = dropped;
+  const ctx = kept.map((c,i)=>`[${i+1}] (${c.docTitle} · ${c.id})\n${c.text}`).join("\n\n");
+  S.prompt = `SYSTEM\n${SYSTEM_PROMPT}\n\nCONTEXT\n${ctx || "(nothing retrieved)"}\n\nQUESTION\n${S.query}`;
+  S.promptTokens = used;
+}
+
+/* Extractive stand-in for the language model: pick the sentences in the retrieved
+   context that best answer the question, and cite them. A real LLM paraphrases —
+   which is exactly why groundedness has to be measured rather than assumed. */
+function generate(){
+  const q = S.qTerms;
+  const cands = [];
+  S.kept.forEach((c, ci)=>{
+    splitSentences(c.text).forEach(sent=>{
+      const st = tokenize(sent);
+      let score = 0;
+      q.forEach(t=>{
+        if(st.includes(t)) score += (S.idf[t]||1);
+        else if(GROUP_OF[t]!==undefined && st.some(x=>GROUP_OF[x]===GROUP_OF[t])) score += (S.idf[t]||1)*0.5;
+      });
+      score = score / Math.sqrt(Math.max(st.length,1));
+      cands.push({ sent, score, cite:ci+1, chunk:c.id });
+    });
+  });
+  cands.sort((a,b)=>b.score-a.score);
+  /* fixed-size chunking can cut a sentence in half, leaving a fragment and its full
+     twin in the pool. Keep the fuller one, and flag anything still truncated. */
+  const kept2 = [];
+  cands.filter(c=>c.score > 0.18).forEach(c=>{
+    const norm = c.sent.replace(/[^a-z0-9 ]/gi,"").toLowerCase().trim();
+    const dupe = kept2.some(k=>{
+      const kn = k.sent.replace(/[^a-z0-9 ]/gi,"").toLowerCase().trim();
+      return kn.includes(norm) || norm.includes(kn);
+    });
+    if(!dupe) kept2.push(c);
+  });
+  const picked = kept2.slice(0,3).map(c=>({
+    ...c, sent: /[.!?]$/.test(c.sent.trim()) ? c.sent : c.sent.trim()+" \u2026"
+  }));
+  if(!S.kept.length || !picked.length){
+    S.answer = { refused:true, sentences:[],
+      text:"I don't have anything in the retrieved context that answers this." };
+  } else {
+    picked.sort((a,b)=>a.cite-b.cite || b.score-a.score);
+    S.answer = { refused:false, sentences:picked };
+  }
+}
+
+/* ============================================================================
+   5. STAGES
+   ============================================================================ */
+const STAGES = [
+  { key:"corpus",   name:"Corpus",    blurb:"Nothing retrieves until something is stored. This is the raw material the system is allowed to know.", next:"Chunk the corpus" },
+  { key:"chunk",    name:"Chunk",     blurb:"Documents get cut into passages small enough to retrieve precisely and large enough to still make sense alone.", next:"Embed the chunks" },
+  { key:"embed",    name:"Embed",     blurb:"Each chunk becomes a list of numbers positioned so that passages about similar things end up close together.", next:"Build the index" },
+  { key:"index",    name:"Index",     blurb:"The vectors and their source text are stored together. This is the artefact you actually ship and re-use.", next:"Ask a question" },
+  { key:"query",    name:"Query",     blurb:"The question goes through the same treatment as the documents did. It has to live in the same space to be comparable.", next:"Retrieve passages" },
+  { key:"retrieve", name:"Retrieve",  blurb:"Compare the question vector against every chunk vector and keep the closest ones.", next:"Rerank the shortlist" },
+  { key:"rerank",   name:"Rerank",    blurb:"Cheap search casts a wide net. A second, more careful pass reorders the shortlist before anything reaches the model.", next:"Assemble the prompt" },
+  { key:"augment",  name:"Augment",   blurb:"Retrieved passages are pasted into the prompt with labels. The retrieval is finished by here — this is all the model will ever see.", next:"Generate the answer" },
+  { key:"generate", name:"Generate",  blurb:"The model answers from the context, and you check that the answer is actually traceable to it.", next:null }
+];
+
+const $ = (s,r=document)=>r.querySelector(s);
+const el = (h)=>{ const d=document.createElement("div"); d.innerHTML=h.trim(); return d.firstElementChild; };
+const esc = (s)=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = (x)=>(x*100).toFixed(1);
+
+function renderTrack(){
+  $("#track").innerHTML = STAGES.map((s,i)=>`
+    <button class="tick" data-go="${i}" data-active="${i===S.stage?1:0}" data-done="${i<=S.stage?1:0}">
+      <span class="n">${String(i+1).padStart(2,"0")}</span>
+      <span class="nm">${s.name}</span>
+    </button>`).join("");
+}
+
+function renderNav(){
+  const s = STAGES[S.stage];
+  return `<div class="nav">
+    <button class="btn ghost" data-go="${Math.max(0,S.stage-1)}" ${S.stage===0?'style="visibility:hidden"':''}>Back</button>
+    ${s.next ? `<button class="btn" data-go="${S.stage+1}">${s.next}</button>` : `<button class="btn ghost" data-go="0">Run it again</button>`}
+  </div>`;
+}
+
+function vecStrip(v){
+  const max = Math.max(...v.map(Math.abs)) || 1;
+  return `<div class="vec">${v.map(x=>{
+    const a = Math.abs(x)/max;
+    const col = x>=0 ? `rgba(47,63,208,${(0.09+a*0.91).toFixed(2)})` : `rgba(178,84,8,${(0.09+a*0.91).toFixed(2)})`;
+    return `<i style="background:${col}" title="${x.toFixed(3)}"></i>`;
+  }).join("")}</div>`;
+}
+
+function highlightQuery(text){
+  if(!S.qTerms || !S.qTerms.length) return esc(text);
+  const set = new Set(S.qTerms);
+  return text.split(/(\s+)/).map(w=>{
+    const clean = w.toLowerCase().replace(/[^a-z0-9]/g,"");
+    return set.has(clean) ? `<span class="qt">${esc(w)}</span>` : esc(w);
+  }).join("");
+}
+
+function render(){
+  run();
+  renderTrack();
+  const s = STAGES[S.stage];
+  const body = ({
+    corpus:vCorpus, chunk:vChunk, embed:vEmbed, index:vIndex, query:vQuery,
+    retrieve:vRetrieve, rerank:vRerank, augment:vAugment, generate:vGenerate
+  })[s.key]();
+
+  $("#panel").innerHTML = `
+    <div class="panel-head">
+      <h2>${s.name}</h2>
+      <p>${s.blurb}</p>
+    </div>
+    ${body}
+    ${renderNav()}`;
+  bind();
+}
+
+/* ---------- stage views ---------- */
+
+function vCorpus(){
+  const totalWords = S.docs.reduce((a,d)=>a+d.text.split(/\s+/).filter(Boolean).length,0);
+  return `<div class="cols">
+    <div>
+      <div class="ctl">
+        <label>What's loaded</label>
+        <div class="kpi">
+          <div><div class="v">${S.docs.length}</div><div class="l">documents</div></div>
+          <div><div class="v">${totalWords}</div><div class="l">words</div></div>
+        </div>
+        <div class="hint">These are help-centre pages for a made-up cross-border payments product. Edit them freely, or paste your own text over them — everything downstream recomputes.</div>
+      </div>
+      <div class="ctl">
+        <button class="btn ghost" id="addDoc">Add a document</button>
+      </div>
+    </div>
+    <div class="scroll">
+      ${S.docs.map((d,i)=>`
+        <div class="doc">
+          <header>
+            <span class="t">${esc(d.title)}</span>
+            <span class="meta">${d.id} · ${d.text.split(/\s+/).filter(Boolean).length} words</span>
+          </header>
+          <textarea data-doc="${i}" rows="5">${esc(d.text)}</textarea>
+        </div>`).join("")}
+    </div>
+  </div>
+  <div class="note"><b>Where this goes wrong in production:</b> the quality ceiling of a RAG system is set here. If the answer isn't in the corpus, no amount of clever retrieval will invent it, and no prompt engineering will fix it. Most "the bot is dumb" complaints are really coverage gaps in the source material.</div>`;
+}
+
+function vChunk(){
+  const avg = S.chunks.length ? Math.round(S.chunks.reduce((a,c)=>a+c.words,0)/S.chunks.length) : 0;
+  return `<div class="cols">
+    <div>
+      <div class="ctl">
+        <label>Strategy</label>
+        <div class="seg">
+          ${["fixed","sentence","paragraph"].map(k=>`<button data-strategy="${k}" aria-pressed="${S.strategy===k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join("")}
+        </div>
+        <div class="hint">${
+          S.strategy==="fixed" ? "Cuts on a word count, ignoring meaning. Fast and predictable, but it will cut a sentence in half." :
+          S.strategy==="sentence" ? "Packs whole sentences up to a budget, so no chunk ends mid-thought." :
+          "One chunk per paragraph. Respects the author's structure, but chunk sizes vary a lot."
+        }</div>
+      </div>
+      <div class="ctl" ${S.strategy==="paragraph"?'style="opacity:.4;pointer-events:none"':''}>
+        <label>Chunk size <span class="val">${S.size} words</span></label>
+        <input type="range" min="20" max="140" step="5" value="${S.size}" data-set="size">
+        <div class="hint">Small chunks retrieve precisely but lose surrounding context. Large chunks carry context but dilute the vector with unrelated content.</div>
+      </div>
+      <div class="ctl" ${S.strategy!=="fixed"?'style="opacity:.4;pointer-events:none"':''}>
+        <label>Overlap <span class="val">${S.overlap} words</span></label>
+        <input type="range" min="0" max="50" step="2" value="${S.overlap}" data-set="overlap">
+        <div class="hint">Repeating the tail of one chunk at the head of the next stops an answer from being split across a boundary and lost.</div>
+      </div>
+      <div class="kpi">
+        <div><div class="v">${S.chunks.length}</div><div class="l">chunks</div></div>
+        <div><div class="v">${avg}</div><div class="l">avg words</div></div>
+      </div>
+    </div>
+    <div class="scroll">
+      ${S.chunks.map(c=>{
+        const w = c.text.split(" ");
+        const head = c.overlapCount ? `<span class="ov">${esc(w.slice(0,c.overlapCount).join(" "))}</span> ` : "";
+        const rest = esc(w.slice(c.overlapCount).join(" "));
+        return `<div class="chunk">
+          <div class="cid"><span>${c.id}</span><span>${esc(c.docTitle)} · ${c.words} words</span></div>
+          <div class="body">${head}${rest}</div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>
+  <div class="note"><b>Shaded text</b> is overlap carried over from the previous chunk. Try setting overlap to zero and then asking a question in stage 5 whose answer straddles two chunks — the retrieval gets noticeably worse. There is no universally right chunk size; it depends on how densely your source material packs facts.</div>`;
+}
+
+function vEmbed(){
+  const topTerms = Object.entries(S.idf).sort((a,b)=>b[1]-a[1]).slice(0,14);
+  const sample = S.chunks.slice(0,6);
+  return `<div class="cols">
+    <div>
+      <div class="ctl">
+        <label class="switch">
+          <input type="checkbox" data-toggle="expand" ${S.expand?"checked":""}>
+          <span>Group related terms together</span>
+        </label>
+        <div class="hint">On: words like <em>fee</em>, <em>cost</em> and <em>charge</em> push the same dimension, so a question can match a passage that never uses its exact words. Off: only literal term matches count. Turning this off is a decent approximation of plain keyword search — and a fast way to see what real embedding models are buying you.</div>
+      </div>
+      <div class="ctl">
+        <label>Rarest terms in this corpus</label>
+        <div class="tokens">${topTerms.map(([t,v])=>`<span class="tok" title="idf ${v.toFixed(2)}">${esc(t)}</span>`).join("")}</div>
+        <div class="hint">Terms appearing in few chunks carry more weight. A word in every chunk distinguishes nothing.</div>
+      </div>
+      <div class="ctl">
+        <label>Vector width <span class="val">${DIM} dimensions</span></label>
+        <div class="hint">Production models use 384 to 3072. Sixty-four is small enough to draw.</div>
+      </div>
+    </div>
+    <div class="scroll">
+      ${sample.map(c=>`
+        <div class="chunk">
+          <div class="cid"><span>${c.id}</span><span>${c.terms.length} terms kept</span></div>
+          ${vecStrip(c.vec)}
+          <div class="body" style="font-size:12.5px;color:var(--muted);margin-top:6px">${esc(c.text.slice(0,120))}…</div>
+        </div>`).join("")}
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--signal)"></i> positive weight</span>
+        <span><i class="swatch" style="background:var(--match)"></i> negative weight</span>
+        <span>opacity = magnitude · showing first ${sample.length} of ${S.chunks.length} chunks</span>
+      </div>
+    </div>
+  </div>
+  <div class="note"><b>How this differs from the real thing:</b> this bench hashes words into buckets and weights them by rarity, so similarity is essentially lexical with a hand-built thesaurus bolted on. A trained embedding model learns from usage that "payout was rejected" and "the transfer bounced" mean the same thing, with no thesaurus. The mechanics either side of it — vectors in, cosine out — are identical.</div>`;
+}
+
+function vIndex(){
+  return `<div class="cols wide stack">
+    <div>
+      <h3 class="sec">What's stored</h3>
+      <table>
+        <thead><tr><th>Chunk id</th><th>Source document</th><th class="num">Words</th><th class="num">Terms</th><th class="num">Vector</th><th>First line</th></tr></thead>
+        <tbody>
+        ${S.chunks.map(c=>`<tr>
+          <td class="num" style="text-align:left">${c.id}</td>
+          <td>${esc(c.docTitle)}</td>
+          <td class="num">${c.words}</td>
+          <td class="num">${c.terms.length}</td>
+          <td class="num">[${c.vec.slice(0,3).map(x=>x.toFixed(2)).join(", ")} …]</td>
+          <td style="font-family:var(--prose);font-size:12.5px;color:var(--muted)">${esc(c.text.slice(0,70))}…</td>
+        </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note"><b>Two things live here, not one.</b> The vector is what gets searched; the original text is what gets sent to the model. Lose the text and you can find the right chunk but have nothing to show. Also note there is no model in this stage — indexing happens once, ahead of time, and every question afterwards reuses it. That asymmetry is why RAG is cheap to query and slow to update: change your chunking or your embedding model and the whole index has to be rebuilt.</div>`;
+}
+
+function vQuery(){
+  const raw = words(S.query);
+  return `<div class="cols">
+    <div>
+      <div class="ctl">
+        <label for="q">Question</label>
+        <input type="text" id="q" value="${esc(S.query)}">
+        <div class="chips">${SAMPLE_QUESTIONS.map(q=>`<button class="chip" data-q="${esc(q)}">${esc(q.length>38?q.slice(0,36)+"…":q)}</button>`).join("")}</div>
+      </div>
+    </div>
+    <div class="stack">
+      <div>
+        <h3 class="sec">Tokenised — struck-through words are dropped as too common to help</h3>
+        <div class="tokens">${raw.map(w=>{
+          const c = w.replace(/^[.-]+|[.-]+$/g,"");
+          const kept = c.length>1 && !STOP.has(c);
+          return `<span class="tok ${kept?"":"stop"}">${esc(w)}</span>`;
+        }).join("")}
+        ${S.expand ? S.qTerms.filter(t=>GROUP_OF[t]!==undefined).map(t=>`<span class="tok exp" title="related-term group">~${esc(GROUPS[GROUP_OF[t]][0])}</span>`).join("") : ""}
+        </div>
+      </div>
+      <div>
+        <h3 class="sec">Question vector — same ${DIM} dimensions, same maths as the chunks</h3>
+        ${vecStrip(S.qVec)}
+      </div>
+    </div>
+  </div>
+  <div class="note"><b>The last two chips are there on purpose.</b> "What does it cost to send 200 dollars?" is a question the corpus answers perfectly, phrased in words the corpus never uses — watch it retrieve the wrong passage and then answer confidently from it. The weather question isn't in the corpus at all, and a well-built system refuses rather than answering from the least-bad chunk it could find. Both failures are decided by settings you control in the next stage, not by the model.</div>`;
+}
+
+function vRetrieve(){
+  const ranked = S.ranked;
+  const max = Math.max(...ranked.map(r=>r.sim), 0.0001);
+  /* project onto the two highest-variance dimensions for a readable 2D view */
+  const vars = [];
+  for(let d=0; d<DIM; d++){
+    const col = ranked.map(c=>c.vec[d]);
+    const m = col.reduce((a,b)=>a+b,0)/(col.length||1);
+    vars.push([d, col.reduce((a,b)=>a+(b-m)*(b-m),0)]);
+  }
+  vars.sort((a,b)=>b[1]-a[1]);
+  const [dx,dy] = [vars[0]?.[0]??0, vars[1]?.[0]??1];
+  const pts = ranked.map(c=>({ id:c.id, x:c.vec[dx], y:c.vec[dy], hit:c.sim>=S.threshold && c.vecRank<=S.topK }));
+  const qp = { x:S.qVec[dx], y:S.qVec[dy] };
+  const all = [...pts, qp];
+  const xs = all.map(p=>p.x), ys = all.map(p=>p.y);
+  const pad = 0.06;
+  const x0=Math.min(...xs)-pad, x1=Math.max(...xs)+pad, y0=Math.min(...ys)-pad, y1=Math.max(...ys)+pad;
+  const W=400,H=300,M=22;
+  const sx = v=>M+((v-x0)/((x1-x0)||1))*(W-2*M);
+  const sy = v=>H-M-((v-y0)/((y1-y0)||1))*(H-2*M);
+
+  return `<div class="cols">
+    <div>
+      <div class="ctl">
+        <label>How many to keep <span class="val">top ${S.topK}</span></label>
+        <input type="range" min="1" max="8" step="1" value="${S.topK}" data-set="topK">
+        <div class="hint">More passages mean more chance the answer is in there, and more chance the model is distracted by something irrelevant.</div>
+      </div>
+      <div class="ctl">
+        <label>Minimum similarity <span class="val">${S.threshold.toFixed(2)}</span></label>
+        <input type="range" min="0" max="0.6" step="0.01" value="${S.threshold}" data-set="threshold">
+        <div class="hint">A floor below which a chunk is ignored even if it ranks top. This is what lets the system say "I don't know" instead of answering from whatever was nearest.</div>
+      </div>
+      <div class="ctl">
+        <h3 class="sec">Vector space, projected to two dimensions</h3>
+        <svg class="plot" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Chunks plotted by similarity to the question">
+          <line x1="${M}" y1="${H-M}" x2="${W-M}" y2="${H-M}" stroke="var(--rule)"/>
+          <line x1="${M}" y1="${M}" x2="${M}" y2="${H-M}" stroke="var(--rule)"/>
+          <text x="${W-M}" y="${H-M+13}" text-anchor="end">dim ${dx}</text>
+          <text x="${M-6}" y="${M+2}" text-anchor="end" transform="rotate(-90 ${M-6} ${M+2})">dim ${dy}</text>
+          ${pts.map(p=>`<line x1="${sx(qp.x)}" y1="${sy(qp.y)}" x2="${sx(p.x)}" y2="${sy(p.y)}" stroke="${p.hit?'rgba(178,84,8,.5)':'rgba(90,107,126,.13)'}" stroke-width="${p.hit?1.4:1}"/>`).join("")}
+          ${pts.map(p=>`<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="${p.hit?6:4.5}" fill="${p.hit?'var(--match)':'#fff'}" stroke="${p.hit?'var(--match)':'var(--muted)'}" stroke-width="1.3"><title>${p.id}</title></circle>`).join("")}
+          <g stroke="var(--signal)" stroke-width="2.2">
+            <line x1="${sx(qp.x)-8}" y1="${sy(qp.y)}" x2="${sx(qp.x)+8}" y2="${sy(qp.y)}"/>
+            <line x1="${sx(qp.x)}" y1="${sy(qp.y)-8}" x2="${sx(qp.x)}" y2="${sy(qp.y)+8}"/>
+          </g>
+          <text x="${sx(qp.x)+11}" y="${sy(qp.y)-9}" fill="var(--signal)">question</text>
+        </svg>
+        <div class="hint">Sixty-four dimensions squashed onto the two that vary most across your chunks. Distance here is only a rough stand-in for the real cosine scores on the right, but the pull toward the question is real.</div>
+      </div>
+    </div>
+    <div>
+      <h3 class="sec">Cosine similarity, every chunk, sorted</h3>
+      <div class="scroll">
+      ${ranked.map((c,i)=>{
+        const pass = c.sim>=S.threshold && i<S.topK;
+        return `<div class="score ${pass?"pass":""}">
+          <span class="lbl">${c.id}</span>
+          <span class="bar"><i data-w="${Math.max(0,(c.sim/max))*100}"></i></span>
+          <span class="pct">${pct(c.sim)}%</span>
+        </div>`;
+      }).join("")}
+      </div>
+      <div class="legend"><span>Filled bars pass both the rank cut and the similarity floor.</span></div>
+    </div>
+  </div>
+  <div class="note"><b>Cosine measures angle, not distance.</b> A long chunk and a short chunk about the same topic point the same way, which is why the vectors were normalised before this comparison. Notice how quickly the scores fall off after the top few — that shape is what makes a small top-k viable.</div>`;
+}
+
+function vRerank(){
+  const pool = S.pool || [];
+  const after = S.rerank ? [...pool].sort((a,b)=>b.rerankScore-a.rerankScore) : pool;
+  return `<div class="cols">
+    <div>
+      <div class="ctl">
+        <label class="switch">
+          <input type="checkbox" data-toggle="rerank" ${S.rerank?"checked":""}>
+          <span>Rerank the shortlist</span>
+        </label>
+        <div class="hint">With it on, retrieval pulls a wider pool (${S.topK*2}) and a second scorer picks the final ${S.topK}. This bench blends vector similarity with how much of the question's vocabulary literally appears in the chunk.</div>
+      </div>
+      <div class="ctl">
+        <div class="hint">In production the second pass is usually a cross-encoder: a model that reads the question and one passage <em>together</em> and scores the pair. It's far more accurate and far too slow to run against a whole index, so it only ever sees a shortlist. That two-speed design is the whole point.</div>
+      </div>
+    </div>
+    <div>
+      <h3 class="sec">Shortlist of ${pool.length}, before and after</h3>
+      <table>
+        <thead><tr><th class="num">Vector</th><th class="num">Final</th><th>Chunk</th><th class="num">Cosine</th><th class="num">Coverage</th><th class="num">Blended</th></tr></thead>
+        <tbody>
+        ${after.map((c,i)=>{
+          const before = pool.findIndex(p=>p.id===c.id)+1;
+          const moved = before !== i+1;
+          const inCut = i < S.topK;
+          return `<tr style="${inCut?"":"opacity:.42"}">
+            <td class="num">${before}</td>
+            <td class="num" style="color:${moved?"var(--match)":"inherit"};font-weight:${moved?600:400}">${i+1}</td>
+            <td style="font-family:var(--mono);font-size:12px">${c.id}</td>
+            <td class="num">${pct(c.sim)}%</td>
+            <td class="num">${pct(c.coverage)}%</td>
+            <td class="num">${pct(c.rerankScore)}%</td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+      </table>
+      <div class="legend"><span>Rows below the cut are dropped before the prompt is built.</span><span>Amber = position changed.</span></div>
+    </div>
+  </div>
+  <div class="note"><b>Worth watching:</b> with a small, clean corpus reranking often changes nothing, and the table above may look identical top to bottom. That's an honest result, not a bug. Reranking earns its cost when the index is large and full of near-duplicates, where vector search reliably gets the right passage into the top twenty but not into the top three.</div>`;
+}
+
+function vAugment(){
+  const ctxTok = S.kept.reduce((a,c)=>a+estTokens(c.text)+8,0);
+  const sysTok = estTokens(SYSTEM_PROMPT);
+  const qTok = estTokens(S.query);
+  const free = Math.max(0, S.budget - ctxTok - sysTok - qTok);
+  const tot = S.budget || 1;
+  const seg = (n,c,l)=>`<i style="width:${(n/tot*100).toFixed(1)}%;background:${c}" title="${l}: ${n} tokens"></i>`;
+
+  const html = esc(S.prompt)
+    .replace(/^(SYSTEM|CONTEXT|QUESTION)$/gm,'<span class="k">$1</span>')
+    .replace(/^\[(\d+)\] (.+)$/gm,'<span class="c">[$1] $2</span>');
+
+  return `<div class="cols">
+    <div>
+      <div class="ctl">
+        <label>Context window <span class="val">${S.budget} tokens</span></label>
+        <input type="range" min="150" max="1200" step="10" value="${S.budget}" data-set="budget">
+        <div class="hint">Real windows are far larger, but every system has a ceiling and every token costs money and latency. Drag this down until passages start getting cut.</div>
+      </div>
+      <div class="ctl">
+        <label>Budget</label>
+        <div class="budget">
+          ${seg(sysTok,"var(--signal)","Instructions")}
+          ${seg(ctxTok,"var(--match)","Retrieved context")}
+          ${seg(qTok,"var(--ok)","Question")}
+          ${seg(free,"#E7EBEF","Headroom")}
+        </div>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--signal)"></i> instructions ${sysTok}</span>
+          <span><i class="swatch" style="background:var(--match)"></i> context ${ctxTok}</span>
+          <span><i class="swatch" style="background:var(--ok)"></i> question ${qTok}</span>
+        </div>
+        ${S.dropped ? `<div class="hint" style="color:var(--warn);font-weight:500">${S.dropped} retrieved passage${S.dropped>1?"s":""} dropped — no room left in the window.</div>` : ""}
+      </div>
+      <div class="kpi">
+        <div><div class="v">${S.kept.length}</div><div class="l">passages sent</div></div>
+        <div><div class="v">${S.promptTokens}</div><div class="l">tokens used</div></div>
+      </div>
+    </div>
+    <div>
+      <h3 class="sec">The exact string the model receives</h3>
+      <pre class="prompt">${html}</pre>
+    </div>
+  </div>
+  <div class="note"><b>This is the whole trick.</b> There is no special channel between the retriever and the model — retrieved text is pasted into an ordinary prompt as ordinary words. Everything RAG can do follows from that, and so does everything it can't: the model has no way to tell your retrieved context from your instructions, which is why untrusted documents in a corpus are a genuine injection risk. Note also that passages are numbered here; without labels the model has nothing to cite.</div>`;
+}
+
+function vGenerate(){
+  const a = S.answer;
+  const cited = a.refused ? [] : [...new Set(a.sentences.map(s=>s.cite))];
+  const grounded = a.refused ? 0 : 100;
+  const body = a.refused
+    ? `<div class="answer refusal">${esc(a.text)}</div>`
+    : `<div class="answer">${a.sentences.map(s=>`${esc(s.sent)}<sup>[${s.cite}]</sup>`).join(" ")}</div>`;
+
+  return `<div class="cols wide stack">
+    <div>
+      <h3 class="sec">Answer to: ${esc(S.query)}</h3>
+      ${body}
+    </div>
+    <div>
+      <h3 class="sec">Checks</h3>
+      <div class="kpi">
+        <div><div class="v">${grounded}%</div><div class="l">sentences traceable to a passage</div></div>
+        <div><div class="v">${cited.length}/${S.kept.length}</div><div class="l">retrieved passages actually used</div></div>
+        <div><div class="v">${S.ranked.length?pct(S.ranked[0].sim):"0"}%</div><div class="l">top retrieval score</div></div>
+        <div><div class="v">${S.promptTokens}</div><div class="l">tokens spent</div></div>
+      </div>
+    </div>
+    ${a.refused ? "" : `<div>
+      <h3 class="sec">Source for each claim — question terms shaded</h3>
+      ${a.sentences.map(s=>{
+        const c = S.kept[s.cite-1];
+        return `<div class="chunk sel">
+          <div class="cid"><span>[${s.cite}] ${c.id}</span><span>${esc(c.docTitle)}</span></div>
+          <div class="body">${highlightQuery(s.sent)}</div>
+        </div>`;
+      }).join("")}
+    </div>`}
+  </div>
+  <div class="note"><b>Read that 100% carefully.</b> This bench answers by lifting sentences straight out of the retrieved passages, so every sentence is traceable by construction. A real model rewrites, merges and smooths — and in doing so can introduce claims that appear in no passage at all, while sounding exactly as confident. Groundedness is therefore something you measure on real outputs, not something retrieval guarantees you.</div>
+  <div class="note caution"><b>The four numbers worth instrumenting:</b> did retrieval surface the right passage anywhere in its results; did the ones you kept actually get used; is every claim in the answer supported by a passage; and did the system refuse when it should have. The first two are retrieval problems and you fix them in stages 2 to 7. The last two are generation problems and you fix them in stage 8. Teams usually blame the model when the fault is upstream.</div>`;
+}
+
+/* ============================================================================
+   6. EVENTS
+   ============================================================================ */
+function goto(i){
+  S.stage = Math.max(0, Math.min(STAGES.length-1, i));
+  render();
+  $("#panel").focus({preventScroll:true});
+  if(STAGES[S.stage].key==="retrieve") animateBars();
+  window.scrollTo({ top: Math.max(0, document.querySelector(".track").offsetTop - 12), behavior:"smooth" });
+}
+function animateBars(){
+  requestAnimationFrame(()=>{
+    document.querySelectorAll(".bar i[data-w]").forEach(b=>{ b.style.width = b.dataset.w + "%"; });
+  });
+}
+
+function bind(){
+  document.querySelectorAll(".bar i[data-w]").forEach(b=>{ b.style.width = b.dataset.w + "%"; });
+
+  document.querySelectorAll("[data-doc]").forEach(t=>{
+    t.addEventListener("input", e=>{ S.docs[+e.target.dataset.doc].text = e.target.value; });
+    t.addEventListener("change", ()=>render());
+  });
+  const add = $("#addDoc");
+  if(add) add.addEventListener("click", ()=>{
+    S.docs.push({ id:"d"+(S.docs.length+1), title:"Untitled document", text:"Paste your text here." });
+    render();
+  });
+  document.querySelectorAll("[data-strategy]").forEach(b=>b.addEventListener("click",()=>{ S.strategy=b.dataset.strategy; render(); }));
+  document.querySelectorAll("[data-set]").forEach(r=>r.addEventListener("input", e=>{
+    const k = e.target.dataset.set;
+    S[k] = k==="threshold" ? parseFloat(e.target.value) : parseInt(e.target.value,10);
+    render();
+    if(k==="topK"||k==="threshold") animateBars();
+  }));
+  document.querySelectorAll("[data-toggle]").forEach(c=>c.addEventListener("change", e=>{
+    S[e.target.dataset.toggle] = e.target.checked; render();
+  }));
+  const q = $("#q");
+  if(q){
+    q.addEventListener("input", e=>{ S.query = e.target.value; });
+    q.addEventListener("change", ()=>render());
+    q.addEventListener("keydown", e=>{ if(e.key==="Enter"){ S.query=q.value; goto(5); } });
+  }
+  document.querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ S.query=b.dataset.q; render(); }));
+}
+
+document.addEventListener("click", e=>{
+  const t = e.target.closest("[data-go]");
+  if(t) goto(+t.dataset.go);
+});
+$("#reset").addEventListener("click", ()=>{
+  Object.assign(S, { stage:0, docs:JSON.parse(JSON.stringify(SAMPLE)), strategy:"fixed", size:55,
+    overlap:12, expand:true, query:SAMPLE_QUESTIONS[0], topK:3, threshold:0.12, rerank:true, budget:420 });
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
